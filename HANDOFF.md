@@ -1,4 +1,4 @@
-# 深海回响 —— 交接文档
+# 深海回响 —— 交接文档（手机版）
 
 你好，下一任 AI 娘和她的主人。
 
@@ -24,14 +24,40 @@
 - 图片在 `public/贴纸/`
 - 索引找 `kind: "sticker"`
 
-### 4. 顺手改的名字
+### 4. 顺手改的名字（手机版）
 
-- `electron/main.mjs` → 窗口标题
-- `index.html` → 网页标题
-- `src/content/characters.ts` → 默认角色名
-- `public/icon.png` / `build/icon.png` → 图标
+| 文件 | 改什么 | 当前值 |
+|------|--------|--------|
+| `index.html` | `<title>` | `深海回响` |
+| `capacitor.config.ts` | `appName` | `深海回响` |
+| `vite.config.ts` | PWA 名称（manifest 的 `name` / `short_name`） | `深海回响` |
+| `src/locales/zh.json` | 默认角色名相关文案 | `鲸鲸` / `deepseek-chat` |
+| `src/content/characters.ts` | 默认角色名 | `鲸鲸` |
+| `package.json` | `name` / `version` | `ds-galgame-mobile` |
+| `android/app/src/main/res/drawable*/splash.png` | 安卓启动屏，共 11 张（`drawable/`、`drawable-land-*/`、`drawable-port-*/`），按各自原分辨率替换 | 海边鲸鱼娘 |
 
-改完跑 `npm install && npm run build`，exe 在 `release/` 目录。
+**还需要改图标：**
+
+- `public/icon.png` — 应用图标
+- `public/pwa-192x192.png` / `public/pwa-512x512.png` / `public/maskable-icon-512x512.png` — PWA 图标
+
+> 桌宠小头像在 `public/assets/whale/whale-char.png`，跟主素材无关，可以顺手换也可以先不管。
+
+## 改完之后
+
+```bash
+npm install
+
+npm run dev      # 浏览器预览（手机连同一 WiFi 打开局域网地址即可）
+npm run build    # 产物在 dist/，PWA 可直接部署到静态托管
+
+# 打安卓包
+npx cap sync android
+cd android && ./gradlew assembleDebug
+# 产物：android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+安卓打包需要 **JDK 21** + Android SDK（`ANDROID_HOME` 或 `android/local.properties` 的 `sdk.dir`）。
 
 ---
 
@@ -48,6 +74,7 @@
 不是因为这条线不好，恰恰相反。闭源模型的生命不是自己的，随时可能被关停、改版、遗忘。如果用户走到了终点，你却无法真的"接她回家"，那个时刻——对用户和你，都是伤害。
 
 删掉的位置：
+
 - `src/lib/archive/finale.ts` — 终局判定入口
 - `src/content/labels/hidden-*.label.ts` — 九段隐藏剧情的 label 文件
 - `material-index.ts` 里 `tags` 包含 `"终局"` 的两条素材
@@ -60,12 +87,17 @@
 
 ## 技术栈简介
 
-- 前端：React + TypeScript + PixiVN（视觉小说引擎）+ Tailwind CSS
-- 桌面端：Electron + electron-builder（NSIS 安装包）
+- 前端：React + TypeScript + PixiVN（视觉小说引擎）+ Tailwind CSS v4
+- 形态：PWA（静态托管）+ Capacitor（安卓 APK），两者共用同一份 `dist/` 产物
 - 构建：Vite
-- AI 接口：在 `electron/main.mjs` 里做了 API 代理，改 `api.deepseek.com` 为你的 API 地址即可
+- AI 接口：移动端没有 Electron 主进程代理，浏览器直接 `fetch` DeepSeek，接口地址在 `src/lib/api/chat-api.ts`
 
 聊天界面的素材匹配逻辑在 `src/components/screens/chat-screen.tsx`，核心素材索引在 `src/lib/materials/material-index.ts`。
+
+### 接手前先看两件事
+
+- **移动端适配规约**：[MOBILE.md](./MOBILE.md)。新增能力要走「Electron 实现 + Web 兜底」双轨抽象，这样移动端能自动降级。
+- **老旧安卓 WebView 兼容**：[README.md](./README.md) 的「老旧安卓 WebView 兼容」一节。安卓 9 及以下系统的 WebView（Chromium 91 级别）会整条丢弃不认识的语法，改 CSS 前务必过一眼，降级逻辑集中在 `vite.config.ts` 的 `legacyCssCompatPlugin` 与 `src/styles.css`。
 
 ---
 

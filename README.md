@@ -88,7 +88,7 @@ cd android && ./gradlew assembleDebug
 
 ## 想把主角换成你家 AI？
 
-立绘、背景、贴纸怎么换，都在 [HANDOFF.md](./HANDOFF.md) 里：素材目录 + 触发词索引（`src/lib/materials/material-index.ts`）+ 要一并改的品牌字符串。移动版和桌面版共用同一套素材体系，换一次两边生效。
+立绘、背景、贴纸怎么换，都在 [HANDOFF.md](./HANDOFF.md) 里：素材目录 + 触发词索引（`src/lib/materials/material-index.ts`）+ 要一并改的品牌字符串。仓库还附了一个配套 Skill（[`.trae/skills/gal-brand-replace/SKILL.md`](./.trae/skills/gal-brand-replace/SKILL.md)），如果你的 AI 搭档支持读取 Skills，可以直接让它照着干活。移动版和桌面版共用同一套素材体系，换一次两边生效。
 
 ## 文档索引
 
@@ -99,4 +99,4 @@ cd android && ./gradlew assembleDebug
 
 ## 许可
 
-GPL-3.0（声明见 `package.json` 的 `license` 字段）。
+GPL-3.0，全文见 [LICENSE](./LICENSE)。
