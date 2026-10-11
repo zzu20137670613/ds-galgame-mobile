@@ -1,4 +1,9 @@
-@import "tailwindcss";
+/* 不使用 @import "tailwindcss"（它会把全部样式包进 @layer，
+   而旧 Android WebView（Chromium < 99）遇到 @layer 会整块丢弃 → 界面全裸）。
+   改为逐个无层导入：输出的 CSS 不带 @layer 包装，老 WebView 也能正常解析。 */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/preflight.css";
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "tailwind-animations";
@@ -7,86 +12,155 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  /* 兼容旧 Android WebView（Chromium < 111 不支持 oklch/color-mix）：
+     这里只使用 hex/rgba 值，不要写 oklch——CSS 变量的"后值覆盖前值"会让
+     旧浏览器在取值时判无效（computed-value 阶段没有回退），而且构建时
+     Lightning CSS 还会把被覆盖的 hex 声明去重删掉。
+     颜色工具类的 color-mix 透明度由 Tailwind 自动生成静态回退，无需处理。 */
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #2d2d2d;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #2d2d2d;
+  --muted: #f5f5f5;
+  --muted-foreground: #808080;
+  --accent: #f5f5f5;
+  --accent-foreground: #2d2d2d;
+  --destructive: #e03c3c;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #ababab;
+  --chart-1: #d7d7d7;
+  --chart-2: #808080;
+  --chart-3: #626262;
+  --chart-4: #4f4f4f;
+  --chart-5: #373737;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #fafafa;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #2d2d2d;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #f5f5f5;
+  --sidebar-accent-foreground: #2d2d2d;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #ababab;
 }
 
 html,
 body {
   background-color: #000;
-  height: 100%;
-  height: 100dvh;
-}
-
-body {
   margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
-  /* 安全区（刘海 / 底部手势条）内边距 */
-  padding:
-    env(safe-area-inset-top, 0px)
-    env(safe-area-inset-right, 0px)
-    env(safe-area-inset-bottom, 0px)
-    env(safe-area-inset-left, 0px);
+  /* 防止移动端双击缩放、长按菜单等干扰触控 */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  /* 禁止文字选中、图片拖拽 */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-/* 16:10 固定比例游戏容器，超长屏两端自动黑条 */
+/* 游戏容器：fixed 铺满视口，宽高由 JS 设为真实 window.innerWidth/Height */
 #mobile-shell {
-  aspect-ratio: 16 / 10;
-  max-width: 100%;
-  max-height: 100%;
-  /* 最小尺寸：防止极端缩放导致 UI 不可用 */
-  min-width: 640px;
-  min-height: 400px;
-  position: relative;
+  position: fixed;
+  top: 0;
+  left: 0;
   overflow: hidden;
-  /* 键盘弹起时通过 JS transform 做位移动画 */
-  transition: transform 0.3s ease-out;
+  /* 键盘弹起时通过 JS top 做位移动画 */
+  transition: top 0.3s ease-out;
 }
 
-/* PixiJS canvas 填满 #mobile-shell */
+/* PixiJS canvas：pixi-vn resizeMode="contain" 自行控制尺寸/定位，CSS 只关触摸 */
 #mobile-shell > canvas {
-  width: 100% !important;
-  height: 100% !important;
   display: block;
+  pointer-events: none !important;
+}
+
+/* #root（React 挂载点）：撑满 shell，作为 HTML UI 层的定位容器 */
+#mobile-shell > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* addHtmlLayer 创建的叠加层（#ui）：React 渲染目标，需允许触控 */
+#mobile-shell #ui {
+  pointer-events: auto;
 }
 
 /* 图片裁剪规则：底部裁 3 顶部裁 1（保人脸/上半身） */
 img[data-mobile-crop="true"],
 #mobile-shell img {
   object-position: center 25%;
+}
+
+/* ======== 竖屏提示层 ======== */
+#portrait-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#portrait-overlay .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: rotate-hint 1.5s ease-in-out infinite;
+}
+
+#portrait-overlay .text {
+  font-size: 18px;
+  opacity: 0.85;
+}
+
+@keyframes rotate-hint {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
+
+/* JS 强制隐藏（覆盖 CSS 媒体查询） */
+#portrait-overlay.hidden {
+  display: none !important;
+}
+
+/* ======== 竖屏兜底：CSS 旋转 90° 填满屏幕 ======== */
+/* Screen Orientation API 不在所有设备/浏览器生效，CSS transform 兜底 */
+@media (orientation: portrait) {
+  #portrait-overlay {
+    display: flex;
+  }
+
+  /* 用户点击关闭提示层后，旋转游戏容器填满屏幕 */
+  #portrait-overlay.hidden ~ #mobile-shell {
+    /* translate(100vw, 0) + rotate(90deg): 先绕左上角旋转，再右移视口宽度 */
+    /* !important 防止键盘 handler 的 inline transform 覆盖 */
+    transform: translate(100vw, 0) rotate(90deg) !important;
+    transform-origin: top left;
+    /* 旋转后宽高互换 */
+    width: 100vh;
+    height: 100vw;
+  }
 }
 
 @theme inline {
@@ -133,37 +207,37 @@ img[data-mobile-crop="true"],
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #1a1a1a;
+  --foreground: #fafafa;
+  --card: #2d2d2d;
+  --card-foreground: #fafafa;
+  --popover: #2d2d2d;
+  --popover-foreground: #fafafa;
+  --primary: #e5e5e5;
+  --primary-foreground: #2d2d2d;
+  --secondary: #373737;
+  --secondary-foreground: #fafafa;
+  --muted: #373737;
+  --muted-foreground: #ababab;
+  --accent: #373737;
+  --accent-foreground: #fafafa;
+  --destructive: #e06969;
+  --border: rgba(255,255,255,0.1);
+  --input: rgba(255,255,255,0.15);
+  --ring: #808080;
+  --chart-1: #d7d7d7;
+  --chart-2: #808080;
+  --chart-3: #626262;
+  --chart-4: #4f4f4f;
+  --chart-5: #373737;
+  --sidebar: #2d2d2d;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #5b5bdf;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #373737;
+  --sidebar-accent-foreground: #fafafa;
+  --sidebar-border: rgba(255,255,255,0.1);
+  --sidebar-ring: #808080;
 }
 
 @layer base {
@@ -178,13 +252,49 @@ img[data-mobile-crop="true"],
   }
 }
 
-@layer components {
-  [data-slot="button"],
-  [data-slot="card"],
-  [data-slot="resizable-handle"],
-  [data-slot="scroll-area"],
-  [data-slot="scroll-area-scrollbar"],
-  [data-slot="toggle"] {
-    pointer-events: auto;
+/* 交互白名单：这些元素必须保持可点击。
+   不能用 @layer 包裹——旧 Android WebView（Chromium < 99）会整块丢弃，
+   导致对话框文字区（scroll-area）在 pointer-events:none 的卡片内收不到点击、
+   对话框"点不动"。无层写法保证新旧内核都生效。 */
+[data-slot="button"],
+[data-slot="card"],
+[data-slot="resizable-handle"],
+[data-slot="scroll-area"],
+[data-slot="scroll-area-scrollbar"],
+[data-slot="toggle"] {
+  pointer-events: auto;
+}
+
+/* ======== 旧 Android WebView（Chromium 91）变换兜底 ========
+   Tailwind v4 把 -translate-x-1/2 编译成 CSS 独立变换属性 translate: var(...)，
+   该属性 Chromium 104+ 才支持，旧内核会整条忽略 → 居中元素跑到右下角并被裁切。
+   这里只在旧内核补 transform 实现（新内核命中 @supports 判断为真，整块跳过，行为不变）。 */
+@supports not (translate: 1px) {
+  /* 通用位移工具类：单选单轴时用 translateX/Y，同时带两轴时合并 */
+  .-translate-x-1\/2:not(.-translate-y-1\/2) {
+    transform: translateX(-50%);
+  }
+  .-translate-y-1\/2:not(.-translate-x-1\/2) {
+    transform: translateY(-50%);
+  }
+  .-translate-x-1\/2.-translate-y-1\/2:not([data-slot="dialog-content"]):not(
+      [data-slot="alert-dialog-content"]
+    ) {
+    transform: translate(-50%, -50%);
+  }
+
+  /* 弹窗居中改用 inset + margin:auto（不依赖 transform），
+     这样入场动画 keyframes 里的 transform 不会把居中顶掉。
+     全屏弹窗（fullscreen-dialog）是靠 top-0/left-0 + 满宽高定位的，必须排除。 */
+  [data-slot="dialog-content"]:not([data-fullscreen-dialog]),
+  [data-slot="alert-dialog-content"] {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin: auto;
+    height: fit-content;
+    max-height: calc(100% - 2rem);
+    overflow-y: auto;
   }
 }

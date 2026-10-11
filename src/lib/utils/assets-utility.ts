@@ -41,16 +41,16 @@ export function getPixiJSAsset(asset: string) {
 
 /**
  * 将背景图按「等比缩放、铺满画布、四周居中」的方式挂到画布上。
- * Pixi 默认按图片原始像素尺寸显示（如 836×605 的横版湖景在 1920×1080 画布里只会占左上角一小块），
+ * Pixi 默认按图片原始像素尺寸显示（如 836×605 的横版湖景在 1280×800 画布里只会占左上角一小块），
  * 加载完成后调用本函数，即可等比放大到完整覆盖画布，避免出现原始尺寸/黑边/变形。
  * @param img 已加载 texture 的 ImageSprite
- * @param canvasWidth 画布逻辑宽度（默认取引擎 1920）
- * @param canvasHeight 画布逻辑高度（默认取引擎 1080）
+ * @param canvasWidth 画布逻辑宽度（默认取引擎 1280）
+ * @param canvasHeight 画布逻辑高度（默认取引擎 800）
  */
 export function fitCanvasBackground(
     img: ImageSprite,
-    canvasWidth: number = 1920,
-    canvasHeight: number = 1080,
+    canvasWidth: number = 1280,
+    canvasHeight: number = 800,
 ): void {
     const tw = img.texture?.width ?? canvasWidth;
     const th = img.texture?.height ?? canvasHeight;

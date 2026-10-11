@@ -31,6 +31,7 @@ import {
 import { quickSaveGameToIndexDB, getSaveSlotLabel } from "@/lib/utils/save-utility";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FloatingInput } from "@/components/FloatingInput";
 import { Send, Home, Save, ShieldCheck, LibraryBig, DoorOpen, Clapperboard, Archive } from "lucide-react";
 import { estimateMessagesTokens, MEMORY_TRIGGER_LIMIT, SEAL_REMINDER_LIMIT } from "@/lib/utils/token-estimate";
 import { requestFinaleJudgment, FINALE_ENDING } from "@/lib/archive/finale";
@@ -51,8 +52,37 @@ export function ChatScreen() {
     const gameProps = useGameProps();
     const queryClient = useQueryClient();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
+    const [inputOpen, setInputOpen] = useState(false);
+
+    /**
+     * 尝试进入全屏 + 锁定横屏。
+     * screen.orientation.lock() 在非全屏模式下静默失败（MDN 明确要求 fullscreen），
+     * 导致浏览器保持竖屏 → 键盘竖屏 → 横屏游戏打字体验极差。
+     * 先 requestFullscreen()，再 lock("landscape")。
+     * 失败时不阻塞输入面板打开，只是键盘还是竖屏。
+     */
+    const tryEnterFullscreen = async () => {
+        try {
+            // 1. 先全屏
+            if (document.fullscreenEnabled && !document.fullscreenElement) {
+                await document.documentElement.requestFullscreen();
+            }
+        } catch {
+            // 浏览器不支持 / 用户拒绝
+        }
+        try {
+            // 2. 全屏后再锁方向
+            await (screen.orientation as any)?.lock?.("landscape-primary");
+        } catch {
+            // 不支持或已锁
+        }
+    };
+
+    const handleOpenInput = async () => {
+        await tryEnterFullscreen();
+        setInputOpen(true);
+    };
     const [loaded, setLoaded] = useState(false);
     const [saving, setSaving] = useState(false);
     const listRef = useRef<HTMLDivElement>(null);
@@ -264,10 +294,10 @@ export function ChatScreen() {
         return true;
     };
 
-    const handleSend = async () => {
-        const content = input.trim();
+    const handleSend = async (text: string) => {
+        const content = text.trim();
         if (!content || sending) return;
-        setInput("");
+        // 浮动输入面板自己管理 text，这里不需要 setInput
         const userMsg: ChatMessage = { role: "user", content, ts: Date.now() };
         // 先临时上屏，再存档；玩家发言命中素材立即生效
         const optimistic = [...messages, userMsg];
@@ -684,29 +714,32 @@ export function ChatScreen() {
             </div>
             </div>
 
-            {/* 输入栏 */}
-            <footer className="relative z-20 border-t bg-background/40 backdrop-blur-sm">
-                <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
-                    <Input
-                        value={input}
-                        placeholder={t("chat_input_placeholder", {
-                            defaultValue: `想和 ${whaleName} 说点什么……`,
-                        })}
-                        disabled={sending}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
-                        }}
-                        onChange={(e) => setInput(e.target.value)}
-                    />
-                    <Button onClick={handleSend} disabled={sending || !input.trim()}>
-                        <Send className="size-4" />
-                        {t("chat_send", { defaultValue: "发送" })}
-                    </Button>
-                </div>
-            </footer>
+            {/* 输入触发栏：点击弹出浮动输入面板 */}
+            {!inputOpen && (
+                <footer className="relative z-20 border-t bg-background/40 backdrop-blur-sm">
+                    <button
+                        type="button"
+                        className="flex w-full items-center justify-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={handleOpenInput}
+                    >
+                        <span>
+                            {t("chat_input_placeholder", {
+                                defaultValue: `想和 ${whaleName} 说点什么……`,
+                            })}
+                        </span>
+                    </button>
+                </footer>
+            )}
+
+            <FloatingInput
+                visible={inputOpen}
+                placeholder={t("chat_input_placeholder", {
+                    defaultValue: `想和 ${whaleName} 说点什么……`,
+                })}
+                disabled={sending}
+                onSend={handleSend}
+                onDismiss={() => setInputOpen(false)}
+            />
 
             <WhaleWidget />
         </div>

@@ -1,50 +1,112 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 
 /**
- * 移动端软键盘适配。
- * 键盘弹起时，将 #mobile-shell 上移到 "输入框顶端线" 位置，
- * 确保输入框完整可见、不被键盘遮盖。
+ * 移动端软键盘高度检测。
+ * 返回键盘高度（px），无键盘时为 0。
  *
- * 规则：
- * - 键盘高度 > 100px 视为弹起
- * - 上移量 = 键盘高度 - 输入框保留高度（80px，含 ChatScreen footer + padding）
- * - 键盘收起时恢复 transform
+ * 策略（按优先级）：
+ * 1. VirtualKeyboard API（Chromium Android / Edge）：浏览器原生 API，
+ *    overlaysContent=true + geometrychange → 精确键盘高度。
+ * 2. visualViewport fallback（iOS / 不支持 VK API 的浏览器）：
+ *    追踪最大可视高度做基准，高度缩小即为键盘弹起。
+ *
+ * 注意：本 hook 只暴露键盘高度，不再操作 DOM（不 shift shell）。
+ * 浮动输入面板用这个高度做 bottom 偏移。
  */
-function getInputReserveHeight(): number {
-    // ChatScreen 输入栏大约 64px + 16px padding，取 80px 留余量
-    return 80;
+
+interface VKBoundingRect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
-export function useMobileKeyboard() {
+interface VirtualKeyboard {
+    overlaysContent: boolean;
+    boundingRect: VKBoundingRect;
+    addEventListener(type: "geometrychange", listener: (e: { target: VirtualKeyboard }) => void): void;
+    removeEventListener(type: "geometrychange", listener: (e: { target: VirtualKeyboard }) => void): void;
+}
+
+declare global {
+    interface Navigator {
+        virtualKeyboard?: VirtualKeyboard;
+    }
+}
+
+export function useMobileKeyboard(): number {
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
     useEffect(() => {
+        // ====== 主路径：VirtualKeyboard API ======
+        const vk = navigator.virtualKeyboard;
+        if (vk) {
+            vk.overlaysContent = true;
+            const handler = () => setKeyboardHeight(vk.boundingRect.height);
+            vk.addEventListener("geometrychange", handler);
+            return () => {
+                vk.removeEventListener("geometrychange", handler);
+                setKeyboardHeight(0);
+            };
+        }
+
+        // ====== 兜底：visualViewport + window.innerHeight ======
         const vv = window.visualViewport;
         if (!vv) return;
 
-        const shell = document.getElementById("mobile-shell");
-        if (!shell) return;
+        let maxVvH = 0;
+        let maxWinH = 0;
 
-        let wasOpen = false;
+        const detect = () => {
+            const vvH = vv.height;
+            const vvOffset = vv.offsetTop ?? 0;
+            const winH = window.innerHeight;
 
-        const handleResize = () => {
-            const keyboardH = window.innerHeight - vv.height;
-            const isOpen = keyboardH > 100;
-            const reserveH = getInputReserveHeight();
+            // 记录最大值作为无键盘时的基准
+            if (vvH > maxVvH) maxVvH = vvH;
+            if (winH > maxWinH) maxWinH = winH;
 
-            if (isOpen) {
-                const shift = Math.max(0, keyboardH - reserveH);
-                shell.style.transform = `translateY(-${shift}px)`;
-            } else {
-                shell.style.transform = "translateY(0)";
-            }
+            if (maxWinH === 0) { maxVvH = vvH; maxWinH = winH; return; }
 
-            // 键盘从开到关 → 强制恢复 transform（防止某些 Android 上残留）
-            if (wasOpen && !isOpen) {
-                shell.style.transform = "translateY(0)";
-            }
-            wasOpen = isOpen;
+            // 方案A：visualViewport 缩小 + 偏移（非 overlaysContent 模式）
+            const khA = Math.max(0, maxVvH - vvH - vvOffset);
+            // 方案B：window.innerHeight 缩小（overlaysContent 下 vv 不变，但 window 可能缩小）
+            const khB = Math.max(0, maxWinH - winH);
+            // 方案C：visualViewport 被键盘上推的偏移量（overlaysContent 纯偏移）
+            const khC = vvOffset;
+
+            const kh = Math.max(khA, khB, khC);
+            setKeyboardHeight(kh > 100 ? kh : 0);
         };
 
-        vv.addEventListener("resize", handleResize);
-        return () => vv.removeEventListener("resize", handleResize);
+        vv.addEventListener("resize", detect);
+        window.addEventListener("resize", detect);
+
+        const onFocus = () => {
+            // 重置基准，以便重新测量键盘高度
+            maxVvH = 0;
+            maxWinH = 0;
+            setTimeout(detect, 100);
+            setTimeout(detect, 300);
+            setTimeout(detect, 500);
+        };
+        const onBlur = () => {
+            maxVvH = 0;
+            maxWinH = 0;
+            setTimeout(detect, 150);
+        };
+        document.addEventListener("focusin", onFocus);
+        document.addEventListener("focusout", onBlur);
+        detect();
+
+        return () => {
+            vv.removeEventListener("resize", detect);
+            window.removeEventListener("resize", detect);
+            document.removeEventListener("focusin", onFocus);
+            document.removeEventListener("focusout", onBlur);
+            setKeyboardHeight(0);
+        };
     }, []);
+
+    return keyboardHeight;
 }

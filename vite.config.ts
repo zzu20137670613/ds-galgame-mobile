@@ -5,10 +5,15 @@ import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
+// lightningcss 随 Tailwind v4 一起安装（@tailwindcss/node 的依赖），此处直接复用
+import { transform as transformCss } from "lightningcss";
 import { defineConfig, type Plugin, type ResolvedConfig } from "vite";
 import { checker } from "vite-plugin-checker";
 import { VitePWA } from "vite-plugin-pwa";
 import assetPackConfig from "./.assetpack.ts";
+
+/** 兼容目标：雷电模拟器自带的 Android WebView 91（Chromium 91） */
+const LEGACY_BROWSER_TARGETS = { chrome: 91 << 16 };
 
 /**
  * List of external hostnames whose responses should be cached by the service worker.
@@ -26,6 +31,7 @@ export default defineConfig(({ mode }) => ({
     base: "/",
     plugins: [
         assetpackPlugin(),
+        legacyCssCompatPlugin(),
         checker({
             typescript: {
                 tsconfigPath: "tsconfig.app.json",
@@ -118,6 +124,8 @@ export default defineConfig(({ mode }) => ({
         __APP_NAME__: JSON.stringify(process.env.npm_package_name),
     },
     build: {
+        // 不做转译，依赖现代 WebView 原生支持；开 sourcemap 方便调试
+        sourcemap: true,
         rollupOptions: {
             output: {
                 manualChunks(id) {
@@ -137,6 +145,40 @@ export default defineConfig(({ mode }) => ({
         },
     },
 }));
+
+/**
+ * 构建期把产物 CSS 按旧浏览器目标重新降级（仅在 build 阶段生效，不影响 dev）。
+ *
+ * 背景：Tailwind v4 默认只面向现代浏览器，输出的 CSS 里有旧内核对不上的新语法，
+ * 而旧内核（如雷电模拟器自带 WebView 91 / Chromium 91）遇到不认识的语法会整条丢弃：
+ *   ① @media (width>=40rem) 范围语法 → 整个 sm:/md:/lg: 响应式块失效
+ *      （表现为弹窗宽度不再被 sm:max-w-sm 收窄 → 溢出屏幕）
+ *   ② oklch() 颜色（Chromium 111+）→ 颜色值无效
+ * 用 Lightning CSS 按目标版本降级：① 转成 min-width 写法 ② 补 rgb 回退。
+ * 注意：translate / scale 独立变换属性 Lightning CSS 不会降级，由 src/styles.css 手动兜底。
+ */
+function legacyCssCompatPlugin(): Plugin {
+    return {
+        name: "vite-plugin-legacy-css-compat",
+        apply: "build",
+        enforce: "post",
+        generateBundle(_options, bundle) {
+            for (const file of Object.values(bundle)) {
+                if (file.type !== "asset" || !file.fileName.endsWith(".css")) continue;
+                const result = transformCss({
+                    filename: file.fileName,
+                    code:
+                        typeof file.source === "string"
+                            ? Buffer.from(file.source)
+                            : file.source,
+                    minify: true,
+                    targets: LEGACY_BROWSER_TARGETS,
+                });
+                file.source = result.code;
+            }
+        },
+    };
+}
 
 function assetpackPlugin(): Plugin {
     let mode: ResolvedConfig["command"];

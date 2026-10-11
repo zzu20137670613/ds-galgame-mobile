@@ -25,8 +25,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
+// 与 PC 端保持一致的左对齐竖排菜单；移动端触摸目标较小，按钮加高、加大字号
 const menuButtonClass =
-    "justify-start hover:scale-105 focus-visible:scale-105 transition-transform duration-150 ease-out";
+    "justify-start gap-2.5 h-12 px-4 text-base hover:scale-105 focus-visible:scale-105 transition-transform duration-150 ease-out";
+const menuIconClass = "size-5 sm:size-6";
 
 export function MainMenu() {
     const gameProps = useGameProps();
@@ -140,9 +142,9 @@ export function MainMenu() {
 
     return (
         <div className="relative h-full w-full flex items-center justify-start p-3 sm:p-6 md:p-10">
-            {/* Buttons card – semi-transparent, fade-in from left on mount */}
+            {/* Buttons card – 与 PC 端同款：左侧竖排、半透明、从左侧滑入 */}
             <Card className="relative z-10 w-full max-w-xs sm:max-w-sm bg-background/70 backdrop-blur-sm animate-in fade-in slide-in-from-left-10 duration-500 ease-out fill-mode-both">
-                <CardContent ref={menuRef} role="menu" className="flex flex-col gap-2 pt-4">
+                <CardContent ref={menuRef} role="menu" className="flex flex-col gap-3 pt-4">
                     <ContinueMenuButton disabled={loading} onLoadingChange={setLoading} />
 
                     <Button
@@ -150,25 +152,23 @@ export function MainMenu() {
                         onClick={async () => {
                             setLoading(true);
                             try {
-                                // 【开始】= 全新开新档：清空对话全量上下文（不续写旧对话），
-                                // 并重置隐藏剧情进度（隐藏剧情跟档走，不继承旧档），
-                                // 再重播开场动画与开局设定表单
                                 await Promise.all([contextArchive.reset(), resetHiddenProgress()]);
+                                await navigate({ to: "/game/narration" });
                             } catch (e) {
-                                console.error("重置新档数据失败", e);
+                                console.error("启动游戏失败", e);
                                 toast.error(t("allert_error_occurred"));
+                            } finally {
                                 setLoading(false);
-                                return;
                             }
-                            await navigate({ to: "/game/narration" });
-                            Game.start("start", gameProps)
-                                .then(() => gameProps.invalidateInterfaceData())
-                                .finally(() => setLoading(false));
+                            Game.start("start", gameProps).catch((e) => {
+                                console.error("启动游戏失败", e);
+                                toast.error(t("allert_error_occurred"));
+                            });
                         }}
                         disabled={loading}
                         className={menuButtonClass}
                     >
-                        <Play className="size-4" />
+                        <Play className={menuIconClass} />
                         {t("start")}
                     </Button>
 
@@ -182,24 +182,27 @@ export function MainMenu() {
                         variant="outline"
                         className={menuButtonClass}
                     >
-                        <Save className="size-4" />
+                        <Save className={menuIconClass} />
                         {t("load")}
                     </Button>
 
                     <Button
                         role="menuitem"
-                        onClick={() => setSettings(true)}
+                        onClick={() => {
+                            setSettings(true);
+                            setSettingsTab(undefined);
+                        }}
                         disabled={loading}
                         variant="outline"
                         className={menuButtonClass}
                     >
-                        <Settings className="size-4" />
+                        <Settings className={menuIconClass} />
                         {t("settings")}
                     </Button>
 
                     {loading ? (
                         <div
-                            className="flex items-center justify-end pt-1 text-muted-foreground"
+                            className="flex items-center justify-start pt-1 text-muted-foreground"
                             aria-live="polite"
                         >
                             <Spinner />
@@ -265,9 +268,9 @@ export function ContinueMenuButton({
     const buttonContent = (
         <>
             {isLoading || loading ? (
-                <Spinner className="size-4" />
+                <Spinner className={menuIconClass} />
             ) : (
-                <CirclePlay className="size-4" />
+                <CirclePlay className={menuIconClass} />
             )}
             {t("continue")}
             {hasRefreshSave ? (

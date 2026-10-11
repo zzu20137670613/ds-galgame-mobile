@@ -18,6 +18,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
     "@drincs/pixi-vn": "1.8.25",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/hotkeys": "^0.8.0",

@@ -36,10 +36,14 @@ export function FullscreenDialogContent({
     return (
         <DialogContent
             showCloseButton={false}
+            // 标记为全屏弹窗：styles.css 里给旧 WebView 的"弹窗居中兜底"规则要跳过它
+            data-fullscreen-dialog=""
             className={cn(
                 // Base: full-screen on all viewport sizes.
                 // sm:max-w-full overrides the base DialogContent's sm:max-w-sm.
-                "flex flex-col p-0 gap-0 overflow-hidden",
+                // bg-background is explicit because base DialogContent uses bg-popover,
+                // which may not be defined or may be transparent in some environments (e.g. Android WebView).
+                "flex flex-col p-0 gap-0 overflow-hidden bg-background",
                 "top-0 left-0 h-full max-h-full w-full max-w-full sm:max-w-full translate-x-0 translate-y-0 rounded-none",
                 // Centered variant: restore normal modal look at lg+
                 centered && [

@@ -4,16 +4,73 @@
     <meta charset="UTF-8" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no, interactive-widget=overlays-content" />
     <meta name="google" content="notranslate" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#000000" />
     <meta name="screen-orientation" content="landscape" />
+    <meta name="x5-orientation" content="landscape" />
+    <meta name="x5-fullscreen" content="true" />
+    <meta name="360-fullscreen" content="true" />
     <title>深海回响</title>
+    <style>
+      #err-overlay { display:none; position:fixed; z-index:99999; inset:0;
+        background:#0a0a0a; color:#f44; font-family:monospace; font-size:12px;
+        padding:16px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; line-height:1.6; }
+      #err-overlay.show { display:block; }
+      #err-overlay b { color:#f88; font-size:14px; }
+    </style>
   </head>
   <body>
+    <div id="err-overlay"><div id="err-body"></div></div>
+    <div id="portrait-overlay">
+      <div class="icon">&#x1F4F1;</div>
+      <div class="text">请旋转手机至横屏</div>
+    </div>
     <div id="root"></div>
+
+    <script>
+      // 仅补 Object.hasOwn — 雷电 WebView 缺这个 ES2022 API
+      if (typeof Object.hasOwn !== "function") {
+        Object.hasOwn = function(obj, prop) {
+          return Object.prototype.hasOwnProperty.call(obj, prop);
+        };
+      }
+    </script>
+    <script>
+      (function(){
+        var el = document.getElementById('err-overlay');
+        var body = document.getElementById('err-body');
+        function show() { el.className = 'show'; }
+        function log(label, msg, url, line, col, stack) {
+          body.innerHTML += '<b>' + label + '</b>\n' + msg;
+          if (url) body.innerHTML += '\n  at ' + url + ':' + line + ':' + col;
+          if (stack) body.innerHTML += '\n' + stack;
+          body.innerHTML += '\n\n';
+          show();
+        }
+        window.onerror = function(msg, url, line, col, err) {
+          log('window.onerror', String(msg), url, line, col, err && err.stack);
+        };
+        window.addEventListener('error', function(e) {
+          if (e.error && e.error !== e.target) {
+            log('error event', String(e.error), e.filename, e.lineno, e.colno, e.error.stack);
+          }
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+          var r = e.reason;
+          log('unhandledrejection', String(r && r.stack || r), '', '', '', r && r.stack);
+        });
+        try {
+          body.innerHTML += '<b>info</b>\n' +
+            'UA: ' + navigator.userAgent + '\n' +
+            'vendor: ' + navigator.vendor + '\n' +
+            'platform: ' + navigator.platform + '\n\n';
+        } catch(e) { body.innerHTML += 'info err: ' + e + '\n\n'; }
+      })();
+    </script>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

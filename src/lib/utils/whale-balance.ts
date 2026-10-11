@@ -148,10 +148,16 @@ export namespace WhaleBalance {
 
     store.setState(s => ({ ...s, loading: true, error: null }))
 
+    // AbortSignal.timeout 需要 Chromium 103+，旧 Android WebView（雷电模拟器 WebView 91）
+    // 上不存在该方法，调用会抛 TypeError，且错误信息里带 "timeout" 会被误判成网络故障。
+    // 改用 AbortController + setTimeout 手动实现超时，兼容所有内核。
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
     try {
       const res = await fetch(BALANCE_URL, {
         headers: { Authorization: `Bearer ${apiKey}` },
-        signal: AbortSignal.timeout(15000),
+        signal: controller.signal,
       })
 
       if (!res.ok) {
@@ -198,6 +204,8 @@ export namespace WhaleBalance {
         error: isNetwork ? "网络连接失败，稍后重试" : message,
       }))
       return null
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 

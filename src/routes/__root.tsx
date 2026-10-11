@@ -4,7 +4,6 @@ import { OfflineAllert } from "@/components/modals/error-allerts";
 import { RootProvider } from "@/components/providers/root-provider";
 import { INTERFACE_DATA_USE_QUERY_KEY } from "@/constants";
 import { useConfirmBackNavigation } from "@/lib/hooks/navigation-hooks";
-import { useMobileKeyboard } from "@/lib/hooks/use-mobile-keyboard";
 import { useOrientationLock } from "@/lib/hooks/use-orientation-lock";
 import { useAutoSaveOnPageClose } from "@/lib/hooks/save-hooks";
 import { useI18n } from "@/lib/i18n";
@@ -16,10 +15,6 @@ import type { RouterContext } from "@/router";
 import { narration } from "@drincs/pixi-vn";
 import { setupPixivnViteData } from "@drincs/pixi-vn/vite-listener";
 import { createRootRouteWithContext, ErrorComponent, Outlet } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
-
-const DevDevtools = import.meta.env.DEV ? lazy(() => import("@/components/dev-devtools")) : null;
-
 export const Route = createRootRouteWithContext<RouterContext>()({
     validateSearch: (search) => SearchParams.setMany(search),
     component: RootComponent,
@@ -48,7 +43,6 @@ function RootComponent() {
     useAutoSaveOnPageClose();
     useConfirmBackNavigation();
     useOrientationLock();
-    useMobileKeyboard();
 
     return (
         <>
@@ -58,11 +52,6 @@ function RootComponent() {
                 <Outlet />
             </RootProvider>
 
-            {DevDevtools && (
-                <Suspense>
-                    <DevDevtools />
-                </Suspense>
-            )}
-        </>
+            </>
     );
 }
