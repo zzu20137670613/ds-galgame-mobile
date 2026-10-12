@@ -25,10 +25,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-// 与 PC 端保持一致的左对齐竖排菜单；移动端触摸目标较小，按钮加高、加大字号
+// 与 PC 端保持一致的左对齐竖排菜单；真机全屏视口下按钮整体收紧（h-10 兼顾触控可点性）
 const menuButtonClass =
-    "justify-start gap-2.5 h-12 px-4 text-base hover:scale-105 focus-visible:scale-105 transition-transform duration-150 ease-out";
-const menuIconClass = "size-5 sm:size-6";
+    "justify-start gap-2 h-10 px-3 text-sm hover:scale-105 focus-visible:scale-105 transition-transform duration-150 ease-out";
+const menuIconClass = "size-4 sm:size-5";
 
 export function MainMenu() {
     const gameProps = useGameProps();
@@ -143,8 +143,8 @@ export function MainMenu() {
     return (
         <div className="relative h-full w-full flex items-center justify-start p-3 sm:p-6 md:p-10">
             {/* Buttons card – 与 PC 端同款：左侧竖排、半透明、从左侧滑入 */}
-            <Card className="relative z-10 w-full max-w-xs sm:max-w-sm bg-background/70 backdrop-blur-sm animate-in fade-in slide-in-from-left-10 duration-500 ease-out fill-mode-both">
-                <CardContent ref={menuRef} role="menu" className="flex flex-col gap-3 pt-4">
+            <Card className="relative z-10 w-full max-w-[15rem] sm:max-w-[17rem] bg-background/70 backdrop-blur-sm animate-in fade-in slide-in-from-left-10 duration-500 ease-out fill-mode-both">
+                <CardContent ref={menuRef} role="menu" className="flex flex-col gap-2 px-3 py-3">
                     <ContinueMenuButton disabled={loading} onLoadingChange={setLoading} />
 
                     <Button

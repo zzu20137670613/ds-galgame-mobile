@@ -13,6 +13,10 @@ import Markdown from "react-markdown";
 import { MarkdownTypewriterHooks } from "react-markdown-typewriter";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
+import { narration } from "@drincs/pixi-vn";
+
+/** 番外《一夜鱼龙舞》：背景偏暗，正文强制亮色避免黑字看不清 */
+const YULONGWU_LABEL_ID = "extra-yulongwu" as const;
 
 export function NarrationCards() {
     const { data: { character } = {} } = useQueryDialogue();
@@ -24,15 +28,15 @@ export function NarrationCards() {
     return (
         <div className="flex h-full flex-col">
             <div className="pointer-events-none relative flex min-h-0 flex-1 flex-col gap-1 overflow-hidden rounded-xl bg-transparent">
-                {/* 底层：毛玻璃，左糊右清 + 上糊下清（mask 横纵相交；顶部先留 3px 缓冲避免 blur 硬切伪影） */}
+                {/* 底层：毛玻璃，左糊右清 + 上糊下清（横向渐变铺到最右侧才全透明；顶部先留 3px 缓冲避免 blur 硬切伪影） */}
                 <div
                     aria-hidden
                     className="absolute inset-0 h-full w-full backdrop-blur-sm"
                     style={{
                         maskImage:
-                            "linear-gradient(to right, #000 0%, #000 25%, rgba(0,0,0,.35) 40%, rgba(0,0,0,0) 55%), linear-gradient(to bottom, rgba(0,0,0,0) 0px, #000 3px, #000 45%, rgba(0,0,0,.3) 60%, rgba(0,0,0,0) 75%)",
+                            "linear-gradient(to right, #000 0%, #000 60%, rgba(0,0,0,.35) 82%, rgba(0,0,0,0) 100%), linear-gradient(to bottom, rgba(0,0,0,0) 0px, #000 3px, #000 45%, rgba(0,0,0,.3) 60%, rgba(0,0,0,0) 75%)",
                         WebkitMaskImage:
-                            "linear-gradient(to right, #000 0%, #000 25%, rgba(0,0,0,.35) 40%, rgba(0,0,0,0) 55%), linear-gradient(to bottom, rgba(0,0,0,0) 0px, #000 3px, #000 45%, rgba(0,0,0,.3) 60%, rgba(0,0,0,0) 75%)",
+                            "linear-gradient(to right, #000 0%, #000 60%, rgba(0,0,0,.35) 82%, rgba(0,0,0,0) 100%), linear-gradient(to bottom, rgba(0,0,0,0) 0px, #000 3px, #000 45%, rgba(0,0,0,.3) 60%, rgba(0,0,0,0) 75%)",
                         maskComposite: "intersect",
                         WebkitMaskComposite: "source-in",
                     }}
@@ -42,7 +46,7 @@ export function NarrationCards() {
                     className="relative min-h-0 flex-1 flex flex-col gap-1 px-1.5 pb-1.5 py-4"
                     style={{
                         backgroundImage:
-                            "linear-gradient(to bottom, rgba(255,255,255,0) 0px, rgba(255,255,255,.15) 2px, rgba(255,255,255,.08) 25%, rgba(255,255,255,0) 50%), linear-gradient(to right, rgba(255,255,255,.15) 0%, rgba(255,255,255,.08) 25%, rgba(255,255,255,0) 50%)",
+                            "linear-gradient(to bottom, rgba(255,255,255,0) 0px, rgba(255,255,255,.15) 2px, rgba(255,255,255,.08) 25%, rgba(255,255,255,0) 50%), linear-gradient(to right, rgba(255,255,255,.15) 0%, rgba(255,255,255,.08) 60%, rgba(255,255,255,0) 100%)",
                     }}
                 >
                     <div className="min-h-0 flex-1">
@@ -92,6 +96,7 @@ export const Text = memo(function Text({
 }) {
     const typewriterDelay = useSelector(TextDisplaySettings.store, (state) => state.delay);
     const { data: { animatedText, text } = {}, finalizeDialogue } = useQueryDialogue();
+    const isYulongwu = narration.currentLabel?.id === YULONGWU_LABEL_ID;
 
     const handleCharacterAnimationComplete = useCallback(
         (ref: { current: HTMLSpanElement | null }) => {
@@ -142,7 +147,14 @@ export const Text = memo(function Text({
     );
 
     return (
-        <p className="prose dark:prose-invert m-0 max-w-full p-0">
+        <p
+            className="prose dark:prose-invert m-0 max-w-full p-0"
+            style={
+                isYulongwu
+                    ? { color: "rgba(255,255,255,.95)", textShadow: "0 1px 3px rgba(0,0,0,.9)" }
+                    : undefined
+            }
+        >
             <span>
                 <Markdown
                     remarkPlugins={[remarkGfm]}

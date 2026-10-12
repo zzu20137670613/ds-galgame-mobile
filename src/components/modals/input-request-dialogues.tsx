@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/input-group";
 import { useGameProps } from "@/lib/hooks/props-hooks";
 import { useQueryDialogue, useQueryInputValue } from "@/lib/query/narration-query";
-import { rollRandomName, SetupStore } from "@/lib/stores/setup-store";
+import { DEFAULT_MODEL_NAME, rollRandomName, SetupStore } from "@/lib/stores/setup-store";
 import { storyModeLabel } from "@/content/labels/story-mode.label";
 import { TextDisplaySettings } from "@/lib/stores/text-display-settings-store";
 import { Game, narration } from "@drincs/pixi-vn";
@@ -37,7 +37,7 @@ export function InputRequestDialog() {
     const [playerName, setPlayerName] = useState(SetupStore.store.state.playerName);
     const [whaleName, setWhaleName] = useState(SetupStore.store.state.whaleName || "鲸鲸");
     const [apiKey, setApiKey] = useState(SetupStore.store.state.apiKey);
-    const [modelName, setModelName] = useState(SetupStore.store.state.modelName || "deepseek-chat");
+    const [modelName, setModelName] = useState(SetupStore.store.state.modelName || DEFAULT_MODEL_NAME);
     const isSetupForm = formMode === "setup";
 
     useEffect(() => {
@@ -50,7 +50,7 @@ export function InputRequestDialog() {
             setPlayerName(state.playerName);
             setWhaleName(state.whaleName || "鲸鲸");
             setApiKey(state.apiKey);
-            setModelName(state.modelName || "deepseek-chat");
+            setModelName(state.modelName || DEFAULT_MODEL_NAME);
         }
     }, [isSetupForm]);
 
@@ -95,14 +95,14 @@ export function InputRequestDialog() {
                             </DialogTitle>
                         </DialogHeader>
                         <form
-                            className="flex flex-col gap-3 py-2"
+                            className="flex flex-col gap-2 py-1"
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 submitSetupForm();
                             }}
                         >
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs text-muted-foreground">
                                     {t("setup_player_name", {
                                         defaultValue: "怎么称呼你？",
                                     })}
@@ -131,8 +131,8 @@ export function InputRequestDialog() {
                                     />
                                 </InputGroup>
                             </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs text-muted-foreground">
                                     {t("setup_whale_name", {
                                         defaultValue: "怎么称呼我？（不填的话我叫鲸鲸）",
                                     })}
@@ -142,8 +142,8 @@ export function InputRequestDialog() {
                                     onChange={(e) => setWhaleName(e.target.value)}
                                 />
                             </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs text-muted-foreground">
                                     {t("setup_api_key", {
                                         defaultValue: "API Key（必填，后续用于世界实时演化）",
                                     })}
@@ -155,15 +155,15 @@ export function InputRequestDialog() {
                                     onChange={(e) => setApiKey(e.target.value)}
                                 />
                             </label>
-                            <label className="flex flex-col gap-1.5">
-                                <span className="text-sm text-muted-foreground">
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs text-muted-foreground">
                                     {t("setup_model_name", {
-                                        defaultValue: "模型名（不填默认 deepseek-chat，支持所有 DS 模型）",
+                                        defaultValue: `模型名（默认 ${DEFAULT_MODEL_NAME}，自带识图；支持所有 DS 模型）`,
                                     })}
                                 </span>
                                 <Input
                                     value={modelName}
-                                    placeholder="deepseek-chat"
+                                    placeholder={DEFAULT_MODEL_NAME}
                                     onChange={(e) => setModelName(e.target.value)}
                                 />
                             </label>

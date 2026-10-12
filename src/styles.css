@@ -144,24 +144,11 @@ img[data-mobile-crop="true"],
   display: none !important;
 }
 
-/* ======== 竖屏兜底：CSS 旋转 90° 填满屏幕 ======== */
-/* Screen Orientation API 不在所有设备/浏览器生效，CSS transform 兜底 */
-@media (orientation: portrait) {
-  #portrait-overlay {
-    display: flex;
-  }
-
-  /* 用户点击关闭提示层后，旋转游戏容器填满屏幕 */
-  #portrait-overlay.hidden ~ #mobile-shell {
-    /* translate(100vw, 0) + rotate(90deg): 先绕左上角旋转，再右移视口宽度 */
-    /* !important 防止键盘 handler 的 inline transform 覆盖 */
-    transform: translate(100vw, 0) rotate(90deg) !important;
-    transform-origin: top left;
-    /* 旋转后宽高互换 */
-    width: 100vh;
-    height: 100vw;
-  }
-}
+/* ======== 竖屏兜底（已移除） ======== */
+/* 原 @media (orientation: portrait) 会在真机锁横屏后误报 portrait 时：
+   ① 显示黑屏提示层；② 对 #mobile-shell 叠加 rotate(90deg)+宽高互换 transform。
+   这两个叠加正是"界面只显示左上角半截"的帮凶，且 portrait-overlay 元素本项目并未渲染。
+   游戏已在 AndroidManifest 锁横屏 + useOrientationLock 兜底，故整体删除。 */
 
 @theme inline {
   --font-heading: var(--font-sans);

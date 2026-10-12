@@ -1,5 +1,5 @@
 import { contextArchive, memoryArchive, type ChatMessage, type SavedMemory } from "@/lib/archive/context-archive";
-import { chatCompletion } from "@/lib/api/chat-api";
+import { chatCompletion, IMAGE_PLACEHOLDER } from "@/lib/api/chat-api";
 import { matchMaterials, type MaterialEntry } from "@/lib/materials/material-index";
 import { clearCurrentBackground } from "@/lib/utils/assets-utility";
 import {
@@ -206,7 +206,20 @@ export function ChatScreen() {
     }, []);
 
     useEffect(() => {
-        listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+        // 长回复渲染需要时间，直接硬滚 + 多轮 rAF/setTimeout 补偿，保证滚到最底部不被打断
+        const el = listRef.current;
+        if (!el) return;
+        const scrollToBottom = () => {
+            el.scrollTop = el.scrollHeight;
+        };
+        scrollToBottom();
+        requestAnimationFrame(scrollToBottom);
+        const t1 = window.setTimeout(scrollToBottom, 50);
+        const t2 = window.setTimeout(scrollToBottom, 200);
+        return () => {
+            window.clearTimeout(t1);
+            window.clearTimeout(t2);
+        };
     }, [messages, sending]);
 
     /** 扫描文本，按形态把命中的素材填进对应槽位 */
@@ -294,15 +307,22 @@ export function ChatScreen() {
         return true;
     };
 
-    const handleSend = async (text: string) => {
+    const handleSend = async (text: string, images: string[] = []) => {
         const content = text.trim();
-        if (!content || sending) return;
+        const hasImages = images.length > 0;
+        if ((!content && !hasImages) || sending) return;
         // 浮动输入面板自己管理 text，这里不需要 setInput
-        const userMsg: ChatMessage = { role: "user", content, ts: Date.now() };
+        // 图片不入存档（体积大），只在存档里留 [图片] 占位，标明"对话到这里有图片"
+        const archived = hasImages
+            ? content
+                ? `${content}\n${IMAGE_PLACEHOLDER}`
+                : IMAGE_PLACEHOLDER
+            : content;
+        const userMsg: ChatMessage = { role: "user", content: archived, ts: Date.now() };
         // 先临时上屏，再存档；玩家发言命中素材立即生效
         const optimistic = [...messages, userMsg];
         setMessages(optimistic);
-        applyMaterials(content);
+        if (content) applyMaterials(content);
         setSending(true);
         try {
             await contextArchive.append(userMsg);
@@ -367,7 +387,7 @@ export function ChatScreen() {
                 };
                 setMessages((prev) => [...prev, sealNotice]);
             }
-            const chatResult = await chatCompletion(all, { memories });
+            const chatResult = await chatCompletion(all, { memories, images });
             const reply: ChatMessage = {
                 role: "assistant",
                 content: chatResult.content,
@@ -656,7 +676,7 @@ export function ChatScreen() {
                     return (
                         <div
                             key={`${m.ts}-${i}`}
-                            className={`flex gap-2 ${isUser ? "justify-end" : "justify-start"}`}
+                            className={`flex shrink-0 gap-2 ${isUser ? "justify-end" : "justify-start"}`}
                         >
                             {!isUser && sticker === null && (
                                 <div className="mt-1 text-xs text-muted-foreground select-none">
@@ -667,7 +687,7 @@ export function ChatScreen() {
                                 className={`max-w-[80%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${
                                     isUser
                                         ? "bg-sky-600 text-white rounded-br-sm"
-                                        : "bg-background/80 backdrop-blur rounded-bl-sm border"
+                                        : "bg-background/95 backdrop-blur rounded-bl-sm border"
                                 }`}
                             >
                                 {!isUser && (
@@ -682,7 +702,7 @@ export function ChatScreen() {
                 })}
                 {sending && (
                     <div className="flex justify-start">
-                        <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-background/80 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
+                        <div className="max-w-[80%] rounded-2xl rounded-bl-sm border bg-background/95 px-4 py-2 text-sm text-muted-foreground backdrop-blur">
                             正在想着怎么回答你……
                         </div>
                     </div>

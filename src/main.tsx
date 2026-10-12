@@ -41,38 +41,25 @@ if (root) {
 body.appendChild(shell);
 
 // JS 设置 shell 真实尺寸（100dvh 在部分手机浏览器上计算不准，用 window.innerWidth/Height 替代）
-// 注意：
-// 1. 判断横竖屏用 screen.orientation.type（不随键盘变化，比 screen.width/height 更可靠）
-// 2. 键盘弹出时部分浏览器会互换 innerWidth/innerHeight（内部切竖屏），
-//    所以宽取 max、高取 min，保证壳子始终横屏比例
-// 3. 缓存最大宽高，防止键盘弹出导致壳子缩水
-// 4. 竖屏时只清 CSS 不重置缓存，切回横屏时缓存还在
+// 重要：游戏恒为横屏（AndroidManifest 已锁 landscape，PWA 下由 useOrientationLock 兜底），
+// 这里【不依赖】screen.orientation.type / screen.width/height 判断方向——
+// 部分真机 WebView 在原生锁横屏后仍会误报竖屏（orientation 返回 portrait），
+// 一旦误判为竖屏并清空 shell 尺寸，CanvasManagerStatic.resize 会拿竖屏视口重算 contain，
+// 导致整个 UI 被压缩成左上角小格子（真机崩溃的根因）。
+// 因此永远按横屏处理：宽取 max、高取 min（键盘弹出时浏览器可能互换 innerWidth/innerHeight 也能兼容）。
 let maxShellW = 0;
 let maxShellH = 0;
 
 function updateShellSize() {
-    const orientationType = screen.orientation?.type ?? "";
-    const isLandscape = orientationType.startsWith("landscape")
-        || (screen.width > screen.height); // fallback
-    console.log("[SHELL] updateShellSize: innerW×innerH=" + window.innerWidth + "×" + window.innerHeight,
-        "screenW×screenH=" + screen.width + "×" + screen.height,
-        "orientation=" + orientationType,
-        "isLandscape=" + isLandscape,
-        "maxShellW=" + maxShellW + " maxShellH=" + maxShellH,
-        "current top=" + shell.style.top);
-    if (isLandscape) {
-        // 键盘弹出时 innerWidth/Height 可能互换，强制宽取大值、高取小值
-        const w = Math.max(window.innerWidth, window.innerHeight);
-        const h = Math.min(window.innerWidth, window.innerHeight);
-        if (w > maxShellW) maxShellW = w;
-        if (h > maxShellH) maxShellH = h;
-        shell.style.width = (maxShellW || w) + "px";
-        shell.style.height = (maxShellH || h) + "px";
-    } else {
-        // 竖屏只清 CSS 尺寸，交给 CSS media query 控制；不重置缓存
-        shell.style.width = "";
-        shell.style.height = "";
-    }
+    const w = Math.max(window.innerWidth, window.innerHeight);
+    const h = Math.min(window.innerWidth, window.innerHeight);
+    // 缓存最大宽高，防止键盘弹出时视口缩水导致壳子变小
+    if (w > maxShellW) maxShellW = w;
+    if (h > maxShellH) maxShellH = h;
+    shell.style.width = (maxShellW || w) + "px";
+    shell.style.height = (maxShellH || h) + "px";
+    console.log("[SHELL] updateShellSize: inner=" + window.innerWidth + "×" + window.innerHeight,
+        "shell=" + shell.style.width + "×" + shell.style.height);
 }
 updateShellSize();
 window.addEventListener("resize", updateShellSize);
@@ -83,23 +70,43 @@ Game.onNavigate(() => {});
 
 // pixi-vn 的 resizeMode "contain" 内部 resize() 方法（静态 CanvasManagerStatic.resize）
 // 会用 document.documentElement 的 clientWidth/clientHeight 做容器尺寸计算，
-// 而非传入的 shell 元素。在部分手机浏览器上 document 高度不准，导致 contain 缩放/居中全错。
+// 而非传入的 shell 元素。在部分手机浏览器上 document 高度不准，导致缩放/居中全错。
 // 解法：在 Game.init 之前替换 CanvasManagerStatic.resize，直接用 shell 的真实尺寸
-//（由 JS 根据 window.innerWidth/Height 设置）重做 contain 计算和 canvas/HTML-layer CSS 定位。
+//（由 JS 根据 window.innerWidth/Height 设置）重做 canvas 与 HTML-layer 的 CSS 定位。
+//
+// 适配策略（真机超长屏回归的核心修复）：
+// - 画布走 cover：真机锁横屏后 CSS 视口约 800×360（20:9），若按 contain（Math.min），
+//   画布只剩 576×360 居中、左右各 112px 黑边 → 背景/场景"不铺满"；
+//   改用 cover（Math.max）让画布宽必铺满、高溢出部分被 shell(overflow:hidden)上下裁掉，
+//   背景/场景纵向铺满屏幕无黑边。
+// - HTML UI 层（#ui）改全屏 100%×100%：React UI（聊天/剧情/演出）全是全屏流式布局
+//   （h-full、flex、百分比、bg-cover），不再用 contain 缩小；
+//   之前 HTML 层被缩到 576×360 后，里面固定 px 的图标/对话框相对显得"很大"，
+//   全屏撑开后图标、对话框、聊天背景恢复正确比例。
 (CanvasManagerStatic as any).resize = function () {
     // clientWidth/Height 在部分手机自带浏览器初始化时可能为 0（布局尚未完成），
-    // fallback 到 shell 的 inline style 值或 window.innerWidth/Height
-    let containerW = shell.clientWidth || parseInt(shell.style.width) || window.innerWidth;
-    let containerH = shell.clientHeight || parseInt(shell.style.height) || window.innerHeight;
+    // fallback 到 shell 的 inline style 值或横屏视口值。
+    // 注意：兜底绝不能用原始的 innerWidth/innerHeight——真机上可能出现竖屏视口值，
+    // 会把 1280×800 的 UI 压成左上角小格子。宽取 max、高取 min。
+    const innerW = window.innerWidth;
+    const innerH = window.innerHeight;
+    const landW = Math.max(innerW, innerH);
+    const landH = Math.min(innerW, innerH);
+    let containerW = shell.clientWidth || parseInt(shell.style.width) || landW;
+    let containerH = shell.clientHeight || parseInt(shell.style.height) || landH;
     if (!containerW || !containerH) return;
 
     const canvasW = 1280;
     const canvasH = 800;
-    const scale = Math.min(containerW / canvasW, containerH / canvasH);
-    const sw = Math.floor(scale * canvasW);
-    const sh = Math.floor(scale * canvasH);
+    // cover：scale 取宽高比例的最大值，画布铺满壳子（宽必铺满，高可能溢出）
+    const scale = Math.max(containerW / canvasW, containerH / canvasH);
+    const sw = Math.ceil(scale * canvasW);
+    const sh = Math.ceil(scale * canvasH);
+    // 溢出方向用负 margin 居中，让 shell(overflow:hidden) 裁掉多余部分
     const mx = Math.floor((containerW - sw) / 2);
     const my = Math.floor((containerH - sh) / 2);
+    console.log("[SHELL] resize(cover): container=" + containerW + "×" + containerH,
+        "scale=" + scale.toFixed(3), "canvas=" + sw + "×" + sh);
 
     const canvasEl = shell.querySelector("canvas");
     if (canvasEl) {
@@ -111,14 +118,14 @@ Game.onNavigate(() => {});
         canvasEl.style.marginBottom = my + "px";
     }
 
-    // HTML layer 定位（#ui 在 #root 内部，#root 已是 absolute 撑满 shell，
-    // 所以用 left/top 而非 margin，避免撑大 #root 导致错位）
+    // HTML layer 定位（#ui 在 #root 内部，#root 已是 absolute 撑满 shell）：
+    // 改全屏，不再 contain 缩小（React UI 本身是全屏流式布局，直接铺满即可）
     const htmlLayers: HTMLElement[] = (CanvasManagerStatic as any).htmlLayers || [];
     for (const layer of htmlLayers) {
-        layer.style.width = sw + "px";
-        layer.style.height = sh + "px";
-        layer.style.left = mx + "px";
-        layer.style.top = my + "px";
+        layer.style.width = "100%";
+        layer.style.height = "100%";
+        layer.style.left = "0";
+        layer.style.top = "0";
         layer.style.marginLeft = "";
         layer.style.marginRight = "";
         layer.style.marginTop = "";
