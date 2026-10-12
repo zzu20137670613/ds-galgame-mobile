@@ -2,8 +2,15 @@ import type { ChatMessage, SavedMemory } from "@/lib/archive/context-archive";
 import { SetupStore } from "@/lib/stores/setup-store";
 import { MEMORY_TRIGGER_LIMIT } from "@/lib/utils/token-estimate";
 
-/** 默认接入端：走本地 vite proxy 转发到 DeepSeek（Electron 阶段改为直连或主进程请求） */
-const API_BASE = "/dg-api";
+/**
+ * 接口基址：
+ * - 开发（Vite dev server）：走 /dg-api 代理转发，本地调试不受 CORS 影响
+ * - 生产（PWA 静态托管 / Capacitor APK）：没有代理服务器，必须直连 DeepSeek 官方域名
+ *   —— 若沿用 /dg-api，静态服务器会返回 SPA 的 index.html，
+ *   表现为 "Unexpected token '<' ... is not valid JSON"
+ *   （DeepSeek 官方 API 对浏览器/WebView 直连会返回 CORS 头，可直接 fetch）
+ */
+const API_BASE = import.meta.env.DEV ? "/dg-api" : "https://api.deepseek.com";
 
 /**
  * 上下文超过 MEMORY_TRIGGER_LIMIT 后，发送给模型的「保留记忆」注入上限。
@@ -130,6 +137,16 @@ export async function sendCompletionRequest(
         body: JSON.stringify(payload),
         signal: options.signal,
     });
+
+    // 防御：请求若被静态服务器/网关截走，会返回 HTML（SPA 兜底页），
+    // 直接 res.json() 只会抛出 "Unexpected token '<' ... is not valid JSON" 这种不可读错误。
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("json")) {
+        const text = await res.text().catch(() => "");
+        throw new Error(
+            `接口返回了非 JSON 响应（HTTP ${res.status}）：${text.trim().slice(0, 100)}`,
+        );
+    }
 
     const data = (await res.json()) as ChatCompletionResponse;
     if (!res.ok || data.error) {
