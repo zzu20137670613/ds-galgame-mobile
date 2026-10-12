@@ -10,23 +10,39 @@ interface Position {
   y: number
 }
 
+/** 横屏纠正：部分手机浏览器/WebView 报告的宽高仍是竖屏值（宽<高）。 */
+function toLandscape(w: number, h: number): { w: number; h: number } {
+  return { w: Math.max(w, h), h: Math.min(w, h) }
+}
+
 /**
- * 可用视口尺寸。
- * 与 main.tsx 的 updateShellSize 保持同一套逻辑：部分手机浏览器/WebView 报告的
- * window.innerWidth/innerHeight 仍是竖屏值（横屏时宽<高），直接拿来算坐标会把
- * 桌宠放到屏幕外（真机上表现为"桌宠不见了"）。
- * 优先取真实游戏容器 #mobile-shell 的尺寸，取不到再用「宽取大、高取小」兜底。
+ * 夹取用的可用视口尺寸。
+ * 桌宠是 position:fixed，坐标系就是视口本身。这里对若干来源各自做横屏纠正后，
+ * 宽高各取最小值——宁可让它稍微靠内，也不能因为某个来源数值偏大而被算到屏幕外。
+ * （不能用 #mobile-shell：它的 maxShellW/H 缓存只增不减，可能大于真实视口。）
  */
 function getViewportSize(): { w: number; h: number } {
-  const shell = document.getElementById("mobile-shell")
-  const sw = shell?.clientWidth || parseInt(shell?.style.width || "", 10) || 0
-  const sh = shell?.clientHeight || parseInt(shell?.style.height || "", 10) || 0
-  if (sw > 0 && sh > 0) return { w: sw, h: sh }
+  const cands: { w: number; h: number }[] = []
+  const de = document.documentElement
+  if (de && de.clientWidth > 0 && de.clientHeight > 0) {
+    cands.push(toLandscape(de.clientWidth, de.clientHeight))
+  }
+  if (window.innerWidth > 0 && window.innerHeight > 0) {
+    cands.push(toLandscape(window.innerWidth, window.innerHeight))
+  }
+  if (cands.length === 0) return { w: 320, h: 240 } // 极端兜底
   return {
-    w: Math.max(window.innerWidth, window.innerHeight),
-    h: Math.min(window.innerWidth, window.innerHeight),
+    w: Math.min(...cands.map((c) => c.w)),
+    h: Math.min(...cands.map((c) => c.h)),
   }
 }
+
+/** 桌宠默认位置：右下角锚定（避开安全区域，兼容刘海/手势条）。
+ *  用 CSS 让浏览器自己算，不依赖任何 JS 尺寸测量。 */
+const ANCHORED_STYLE = {
+  right: "calc(16px + env(safe-area-inset-right, 0px))",
+  bottom: "calc(56px + env(safe-area-inset-bottom, 0px))",
+} as const
 
 export function WhaleWidget() {
   const apiKey = useSelector(SetupStore.store, (s) => s.apiKey)
@@ -34,7 +50,8 @@ export function WhaleWidget() {
   const whaleState = useSelector(WhaleBalance.store, (s) => s)
 
   const [expanded, setExpanded] = useState(false)
-  const [pos, setPos] = useState<Position>({ x: 0, y: 0 })
+  // null = 未拖拽过：用 CSS 右下角锚定（最稳，不依赖 JS 测量尺寸）
+  const [pos, setPos] = useState<Position | null>(null)
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
   const widgetRef = useRef<HTMLDivElement>(null)
@@ -50,9 +67,9 @@ export function WhaleWidget() {
   }, [])
 
   useEffect(() => {
-    // 读档位置与默认位置都要做边界夹取：
-    // ① 旧版本存的坐标可能是竖屏时算出来的，横屏下落在屏幕外 → 桌宠「消失」；
-    // ② 默认位置改用 getViewportSize，避免横竖屏数值误报导致算出屏幕外的坐标。
+    // 只有「用户拖拽过」才用像素坐标（并做边界夹取，旧版本存下的屏幕外坐标可自愈）；
+    // 否则交给 CSS 右下角锚定——默认位置完全不依赖 JS 尺寸测量，
+    // 从根上避免真机上因视口数值误报而被算到屏幕外（桌宠「消失」）。
     const saved = localStorage.getItem("gal_whale_pos")
     if (saved) {
       try {
@@ -63,13 +80,12 @@ export function WhaleWidget() {
         }
       } catch { /* ignore */ }
     }
-    const { w: vw, h: vh } = getViewportSize()
-    setPos(clampPos(vw - 80, vh - 120))
+    setPos(null)
   }, [clampPos])
 
-  // 旋转屏幕 / 视口尺寸变化时把桌宠拉回可视区，避免横竖屏切换后跑到屏幕外
+  // 旋转屏幕 / 视口尺寸变化时把「已拖拽过」的桌宠拉回可视区
   useEffect(() => {
-    const reclamp = () => setPos((p) => clampPos(p.x, p.y))
+    const reclamp = () => setPos((p) => (p ? clampPos(p.x, p.y) : p))
     window.addEventListener("resize", reclamp)
     window.addEventListener("orientationchange", reclamp)
     return () => {
@@ -88,11 +104,13 @@ export function WhaleWidget() {
   }, [])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // 默认是 CSS 锚定（pos 为 null），拖拽前先从实际渲染位置取一次起点
+    const rect = widgetRef.current?.getBoundingClientRect()
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      startPosX: pos.x,
-      startPosY: pos.y,
+      startPosX: pos ? pos.x : (rect?.left ?? 0),
+      startPosY: pos ? pos.y : (rect?.top ?? 0),
     }
   }, [pos])
 
@@ -100,15 +118,19 @@ export function WhaleWidget() {
     if (!dragRef.current) return
     const dx = e.clientX - dragRef.current.startX
     const dy = e.clientY - dragRef.current.startY
+    const next = () =>
+      clampPos(dragRef.current!.startPosX + dx, dragRef.current!.startPosY + dy)
 
     if (dragging) {
-      setPos(clampPos(dragRef.current.startPosX + dx, dragRef.current.startPosY + dy))
+      setPos(next())
       return
     }
 
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       setDragging(true)
       setExpanded(false)
+      // 一开始拖动就切到像素定位，避免只移动一次就松手时位置丢失
+      setPos(next())
       e.currentTarget.setPointerCapture(e.pointerId)
     }
   }, [dragging, clampPos])
@@ -117,7 +139,7 @@ export function WhaleWidget() {
     if (dragging) {
       setDragging(false)
       e.currentTarget.releasePointerCapture(e.pointerId)
-      persistPos(pos)
+      if (pos) persistPos(pos)
       dragRef.current = null
       return
     }
@@ -143,8 +165,9 @@ export function WhaleWidget() {
         expanded && "scale-105"
       )}
       style={{
-        left: pos.x,
-        top: pos.y,
+        // 未拖拽过：CSS 右下角锚定（含安全区域），由浏览器计算，不依赖 JS 测量
+        // 已拖拽过：使用拖拽保存的像素坐标（已做边界夹取）
+        ...(pos ? { left: pos.x, top: pos.y } : ANCHORED_STYLE),
         touchAction: "none",
       }}
       onPointerDown={handlePointerDown}
