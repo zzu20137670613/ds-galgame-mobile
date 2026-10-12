@@ -10,6 +10,24 @@ interface Position {
   y: number
 }
 
+/**
+ * 可用视口尺寸。
+ * 与 main.tsx 的 updateShellSize 保持同一套逻辑：部分手机浏览器/WebView 报告的
+ * window.innerWidth/innerHeight 仍是竖屏值（横屏时宽<高），直接拿来算坐标会把
+ * 桌宠放到屏幕外（真机上表现为"桌宠不见了"）。
+ * 优先取真实游戏容器 #mobile-shell 的尺寸，取不到再用「宽取大、高取小」兜底。
+ */
+function getViewportSize(): { w: number; h: number } {
+  const shell = document.getElementById("mobile-shell")
+  const sw = shell?.clientWidth || parseInt(shell?.style.width || "", 10) || 0
+  const sh = shell?.clientHeight || parseInt(shell?.style.height || "", 10) || 0
+  if (sw > 0 && sh > 0) return { w: sw, h: sh }
+  return {
+    w: Math.max(window.innerWidth, window.innerHeight),
+    h: Math.min(window.innerWidth, window.innerHeight),
+  }
+}
+
 export function WhaleWidget() {
   const apiKey = useSelector(SetupStore.store, (s) => s.apiKey)
   const whaleName = useSelector(SetupStore.store, (s) => s.whaleName || "鲸鲸")
@@ -21,19 +39,44 @@ export function WhaleWidget() {
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null)
   const widgetRef = useRef<HTMLDivElement>(null)
 
+  const clampPos = useCallback((x: number, y: number): Position => {
+    const w = widgetRef.current?.offsetWidth || 64
+    const h = widgetRef.current?.offsetHeight || 64
+    const { w: vw, h: vh } = getViewportSize()
+    return {
+      x: Math.max(0, Math.min(x, vw - w)),
+      y: Math.max(0, Math.min(y, vh - h)),
+    }
+  }, [])
+
   useEffect(() => {
+    // 读档位置与默认位置都要做边界夹取：
+    // ① 旧版本存的坐标可能是竖屏时算出来的，横屏下落在屏幕外 → 桌宠「消失」；
+    // ② 默认位置改用 getViewportSize，避免横竖屏数值误报导致算出屏幕外的坐标。
     const saved = localStorage.getItem("gal_whale_pos")
     if (saved) {
       try {
         const p = JSON.parse(saved)
         if (typeof p.x === "number" && typeof p.y === "number") {
-          setPos(p)
+          setPos(clampPos(p.x, p.y))
           return
         }
       } catch { /* ignore */ }
     }
-    setPos({ x: window.innerWidth - 80, y: window.innerHeight - 120 })
-  }, [])
+    const { w: vw, h: vh } = getViewportSize()
+    setPos(clampPos(vw - 80, vh - 120))
+  }, [clampPos])
+
+  // 旋转屏幕 / 视口尺寸变化时把桌宠拉回可视区，避免横竖屏切换后跑到屏幕外
+  useEffect(() => {
+    const reclamp = () => setPos((p) => clampPos(p.x, p.y))
+    window.addEventListener("resize", reclamp)
+    window.addEventListener("orientationchange", reclamp)
+    return () => {
+      window.removeEventListener("resize", reclamp)
+      window.removeEventListener("orientationchange", reclamp)
+    }
+  }, [clampPos])
 
   useEffect(() => {
     WhaleBalance.startPolling(() => apiKey)
@@ -42,15 +85,6 @@ export function WhaleWidget() {
 
   const persistPos = useCallback((p: Position) => {
     localStorage.setItem("gal_whale_pos", JSON.stringify(p))
-  }, [])
-
-  const clampPos = useCallback((x: number, y: number): Position => {
-    const w = widgetRef.current?.offsetWidth || 64
-    const h = widgetRef.current?.offsetHeight || 64
-    return {
-      x: Math.max(0, Math.min(x, window.innerWidth - w)),
-      y: Math.max(0, Math.min(y, window.innerHeight - h)),
-    }
   }, [])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
