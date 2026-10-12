@@ -91,7 +91,6 @@ export function ChatScreen() {
     // ── 素材槽位状态：背景 / 立绘 / 贴纸 ──
     const [background, setBackground] = useState<string | null>("/背景/海滩假日_鲸鱼娘.png");
     const [character, setCharacter] = useState<MaterialEntry | null>(null);
-    const [charRatio, setCharRatio] = useState<number | null>(null);
     const [sticker, setSticker] = useState<MaterialEntry | null>(null);
     const [stickerTs, setStickerTs] = useState<number>(Date.now());
     const [stickerFading, setStickerFading] = useState(false);
@@ -110,9 +109,6 @@ export function ChatScreen() {
     // ── 隐藏剧情·探索期状态：段演完回聊天后右侧常驻两个按钮 ──
     const [exploreAnchor, setExploreAnchor] = useState<string | null>(null);
     const [exploreOpen, setExploreOpen] = useState(false);
-
-    /** 立绘比例：宽/高。判断为正方形或竖版（比例<1.1）时启用左对齐大立绘布局 */
-    const showBanner = character !== null && charRatio !== null && charRatio < 1.1;
 
     /** 刷新探索期状态：锚点段 + 按钮开关 */
     const refreshExplore = async () => {
@@ -232,7 +228,6 @@ export function ChatScreen() {
                 break;
             case "character":
                 setCharacter(hit.entry);
-                setCharRatio(null); // 由 <img> onLoad 读取真实比例
                 break;
             case "sticker":
                 setSticker(hit.entry);
@@ -515,16 +510,32 @@ export function ChatScreen() {
                 style={{ backgroundImage: background ? `url(${background})` : undefined }}
             />
 
-            {/* 立绘槽位：竖版/正方形 → 主内容区左对齐大立绘；横版 → 左下角小立绘 */}
-
-            {/* 左下角小立绘：仅横版/无立绘时保留原布局 */}
-            {character && !showBanner && (
-                <div className="pointer-events-none absolute bottom-40 left-4 z-10 hidden w-52 sm:block">
+            {/* 立绘槽位：等比缩放、水平垂直居中，上下各留约一行文字的距离（避免贴近顶部栏/底部输入栏） */}
+            {character && (
+                <div className="pointer-events-none absolute inset-0 z-10 hidden items-center justify-center sm:flex">
                     <img
                         key={character.src}
                         src={character.src}
                         alt="立绘"
-                        className="w-full drop-shadow-xl animate-in fade-in zoom-in-95 duration-300"
+                        className="max-h-[calc(100%-2.625rem)] max-w-[60vw] w-auto animate-in fade-in zoom-in-95 duration-300 drop-shadow-xl object-contain"
+                    />
+                </div>
+            )}
+
+            {/* 表情贴纸槽位：固定屏幕左侧垂向居中，5 秒后渐隐淡出；与居中的立绘不重叠 */}
+            {sticker && (
+                <div
+                    key={stickerTs}
+                    className={`pointer-events-none absolute left-3 top-1/2 z-10 hidden -translate-y-1/2 transition-opacity duration-300 sm:block ${
+                        stickerFading
+                            ? "opacity-0"
+                            : "animate-in fade-in slide-in-from-bottom-2 duration-300"
+                    }`}
+                >
+                    <img
+                        src={sticker.src}
+                        alt="表情贴纸"
+                        className="w-36 rounded-xl shadow-lg"
                     />
                 </div>
             )}
@@ -633,33 +644,13 @@ export function ChatScreen() {
                 </div>
             )}
 
-            {/* 主内容区：左侧横幅立绘 + 右侧对话框（仅竖版/正方形启用左对齐） */}
+            {/* 主内容区：消息流（立绘已独立居中渲染，这里只滚动聊天） */}
             <div className="relative z-10 flex min-h-0 flex-1">
-                {/* 横幅立绘：高度自适应，宽度按比例自动，上限避免盖住对话框 */}
-                {showBanner && character && (
-                    <div className="pointer-events-none hidden h-full max-w-[40vw] shrink-0 sm:block">
-                        <img
-                            key={character.src}
-                            src={character.src}
-                            alt="立绘"
-                            className="h-full w-auto max-w-[40vw]"
-                            style={{ objectFit: "contain" }}
-                            onLoad={(e) => {
-                                const el = e.currentTarget;
-                                if (el.naturalWidth > 0) {
-                                    setCharRatio(el.naturalWidth / el.naturalHeight);
-                                }
-                            }}
-                        />
-                    </div>
-                )}
-
-                {/* 消息流 */}
+                {/* 消息流：底部留出约两行文字的高度，避免被输入栏/浮动输入框遮挡 */}
                 <div
                     ref={listRef}
-                    className={`flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 ${
-                        showBanner ? "w-auto" : "mx-auto w-full max-w-3xl"
-                    }`}
+                    className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 overflow-y-auto px-4 pt-4"
+                    style={{ paddingBottom: "2.625rem" }}
                 >
                 {!loaded && (
                     <div className="mx-auto text-sm text-muted-foreground">
@@ -715,22 +706,6 @@ export function ChatScreen() {
                         onSave={saveMemory}
                     />
                 ) : null}
-
-                {/* 表情贴纸槽位：最后一次命中后短暂展示，5 秒后渐隐淡出 */}
-                {sticker && (
-                    <div
-                        key={stickerTs}
-                        className={`pointer-events-none flex justify-start transition-opacity duration-300 ${
-                            stickerFading ? "opacity-0" : "animate-in fade-in slide-in-from-bottom-2 duration-300"
-                        }`}
-                    >
-                        <img
-                            src={sticker.src}
-                            alt="表情贴纸"
-                            className="w-36 rounded-xl shadow-lg"
-                        />
-                    </div>
-                )}
             </div>
             </div>
 
