@@ -94,6 +94,14 @@ cd android && ./gradlew assembleDebug
 
 聊天界面的素材匹配逻辑在 `src/components/screens/chat-screen.tsx`，核心素材索引在 `src/lib/materials/material-index.ts`。
 
+## 发布流程与术语约定（用户拍板，2026-10-14）
+
+- **「包体入库」= 传到 GitHub Release**。用户说「apk/exe 入库」「上传」「发布新版本」，指打新包 → 建 release → `gh release create`（或 `gh release upload`）上传包体，下载链接保持 `releases/latest` 不变（手机端即 `github.com/zzu20137670613/ds-galgame-mobile/releases/latest`）。
+- **git 仓库永不提交包体**（APK/EXE 均超 GitHub 单文件 100MB 入库上限，只能走 Release 资产通道，上限 2GB）。`git add` 只加代码/素材，避开包体与 `dist/`、`release/`、`android/**/build/` 等构建产物（均在 .gitignore）。
+- 手机仓库根目录 `ShenHaiHuiXiangMobile*.apk`（当前 `V1.2.0`，历史 `V1.1.0`）是 Release 上传源副本，保持 untracked，**绝不允许 `git add`**。
+- 当前版本 v1.2.0：`ShenHaiHuiXiangMobileV1.2.0.apk`（约 153MB）。发布时版本号唯一事实源是 `android/app/build.gradle`（versionCode 递增 + versionName）与 `package.json`，改动后同步记入 VERSION.md。
+- 本机打包注意：手机端 Capacitor 8 需 JDK 21，本机目前只有 JDK 17，可用临时 init script 降编译目标（`-I <global>.init.gradle` vs `JavaVersion.VERSION_21`），长期建议装 JDK 21；打 debug 包用 `npx cap sync android && cd android && gradlew assembleDebug --no-daemon`。
+
 ## 关于联网搜索（未实现 · 预留近路）
 
 当前版本**不支持实时联网**，这是一次明确定下来的取舍：
