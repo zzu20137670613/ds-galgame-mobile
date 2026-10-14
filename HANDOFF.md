@@ -102,6 +102,7 @@ cd android && ./gradlew assembleDebug
 - 当前版本 v1.2.1：`ShenHaiHuiXiangMobileV1.2.1.apk`（约 153MB）。发布时版本号唯一事实源是 `android/app/build.gradle`（versionCode 递增 + versionName）与 `package.json`，改动后同步记入 VERSION.md。
 - 本机打包注意：手机端 Capacitor 8 需 JDK 21，本机目前只有 JDK 17，可用临时 init script 降编译目标（`-I <global>.init.gradle` vs `JavaVersion.VERSION_21`），长期建议装 JDK 21；打 debug 包用 `npx cap sync android && cd android && gradlew assembleDebug --no-daemon`。
 - **上传坑（2026-10-14 v1.2.1 实测）**：本机路由器 DNS（192.168.1.1）对 `uploads.github.com` 返回坏包（`Bad DNS packet` / `no such host`），`gh release create/upload` 传大资产会失败；`github.com` / `api.github.com` 解析正常。解法：先用 `gh release create`（不带资产）建好 release，再用 `curl --resolve uploads.github.com:443:<正确IP> -X POST .../releases/<id>/assets?name=<文件名> -H "Authorization: token $(gh auth token)" --data-binary @<文件>` 绕过 DNS 直传（正确 IP 可用公共 DNS 查到，如 `nslookup uploads.github.com 223.5.5.5` → 20.205.243.161）。根治：改本机 DNS 为公共 DNS（需管理员）。
+- **Release 清理规矩（2026-10-14 起，用户拍板）**：发新版时把**旧的 Release（含包体资产）删掉**，Release 页只保留最新一个；**git tag 和 commit 历史一律保留**（是修复与版本迭代的证据）。已清理：PC/mobile 各只留 v1.2.1。
 
 ## 关于联网搜索（未实现 · 预留近路）
 
