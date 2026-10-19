@@ -22,6 +22,8 @@ public/assets
 release
 release-v2
 build/electron-dist
+# 安装包只上传到 GitHub Release，永不进 git（单个 195MB，进仓库会撑爆历史）
+*.apk
 .idea
 .DS_Store
 *.suo
