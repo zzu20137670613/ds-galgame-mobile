@@ -10,6 +10,24 @@
 
 ---
 
+## v1.3.4（2026-10-19）
+
+**修复「装了新包，界面还是老样子」。** 版本号 `1.3.3` → `1.3.4`（versionCode 8 → 9，安装包 `ShenHaiHuiXiangMobileV1.3.4.apk`，覆盖安装、上下文存档不丢）。
+
+### 根因
+- 打包时生成的 `sw.js`（PWA Service Worker）里有一段 `new NavigationRoute(createHandlerBoundToURL("index.html"))` —— **每次打开都从预缓存里返回旧版 `index.html`**；而 `registerSW.js` 又从不调 `skipWaiting()`，新 SW 装好也不接管。
+- 结果：包体里的 `dist` 明明是最新的，界面却一直停在旧版。属于缓存层问题，**与存档、与代码同步都无关**。PC 端先踩到，手机端配置同源，同一个坑，一并修。
+
+### 修法
+- `vite.config.ts` 的 `VitePWA` 改为 **`selfDestroying: true`（自毁模式）**：打包出的 SW 一激活就 **注销自己 + 清空所有 cache + 让页面重载**，之后不再注册任何 SW。
+- 已装旧版的人升到 1.3.4 后，第一次打开即自动清干净旧缓存，界面刷新到新版；此坑永久消失。
+- 注意：此模式下原 `precache` / `runtimeCaching` 不再生效；若哪天要恢复真正的离线 PWA，把这一行删掉即可。
+
+### 说明
+- **无内容变更**：番外、素材库、剧情均与 1.3.3 一致（仍为 238 条目）。
+
+---
+
 ## v1.3.3（2026-10-19）
 
 **新番外《开馆日》+ 番外触发词解锁顺序调整。** 版本号 `1.3.2` → `1.3.3`（versionCode 7 → 8，安装包 `ShenHaiHuiXiangMobileV1.3.3.apk`，覆盖安装、上下文存档不丢）。
