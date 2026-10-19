@@ -56,6 +56,15 @@ export default defineConfig(({ mode }) => ({
             },
         }),
         VitePWA({
+            /*
+             * 2026-10-19：与 PC 端同构，改为「自毁」模式（selfDestroying）。
+             * 理由一致：本仓库只发 APK（资源全部打在包里），Service Worker 没有离线价值，
+             * 却会带来「装了新包界面还是老样子」的坑 —— sw.js 的 NavigationRoute 每次都从
+             * 预缓存里返回旧版 index.html，而 registerSW.js 从不 skipWaiting()，新 SW 不接管。
+             * selfDestroying 会让打包出的 SW 自己注销 + 清缓存，之后不再注册任何 SW。
+             * 注意：此模式下下面的 precache / runtimeCaching 不再生效；要恢复真离线 PWA 就删掉这一行。
+             */
+            selfDestroying: true,
             // generate icons with: npm run icon
             includeAssets: ["favicon.ico", "apple-touch-icon-180x180.png"],
             manifest: {
